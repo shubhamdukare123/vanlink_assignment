@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "852738485641",
+    "project_id": "vanlink-assignment",
+    "storage_bucket": "vanlink-assignment.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:852738485641:android:afe8a3f2baeabc47ca0558",
+        "android_client_info": {
+          "package_name": "com.example.vanlink_assignment"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCoLb8cJCETqmTLXEZPjZaCrq1mmckZQgQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
