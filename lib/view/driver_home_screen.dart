@@ -48,7 +48,7 @@ class DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   final databaseReference = FirebaseDatabase.instance
-      .ref("driver_location"); // Adjust path accordingly
+      .ref("driver_location"); 
 
   void listenToDriverLocation() {
     databaseReference.onValue.listen((DatabaseEvent event) {
@@ -109,6 +109,8 @@ class DriverHomeScreenState extends State<DriverHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+
+      
       appBar: AppBar(
         title: Text(
           "Vanlink",

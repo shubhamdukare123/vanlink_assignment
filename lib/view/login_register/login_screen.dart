@@ -14,10 +14,10 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => EzyEventUIState();
+  State<LoginScreen> createState() => LoginScreenState();
 }
 
-class EzyEventUIState extends State<LoginScreen>
+class LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   bool rememberMeSwitch = false;
   bool _obscurePassword = true;
