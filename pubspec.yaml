@@ -14,8 +14,12 @@ dependencies:
   flutter:
     sdk: flutter
 
+  flutter_launcher_icons: ^0.14.3
+
+  gauge_indicator: ^0.4.3
   geocoding: ^3.0.0
 
+  get: ^4.7.2
   google_fonts: ^6.2.1
   google_maps_flutter: ^2.10.1
   location: ^7.0.1
@@ -25,6 +29,12 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: "^0.14.3"
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/vanlink_logo.jpg"
 
 flutter:
   uses-material-design: true

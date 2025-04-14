@@ -1,53 +1,50 @@
 import 'dart:developer';
-import 'dart:typed_data';
+
 import "package:flutter/material.dart";
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
-import 'package:geocoding/geocoding.dart';
-
 import 'package:location/location.dart' as loc;
 import 'package:location/location.dart';
 import 'package:vanlink_assignment/controller/firebase_driver_location_service.dart';
 import 'package:vanlink_assignment/model/trip_details_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:vanlink_assignment/view/login_register/login_screen.dart';
+import 'package:gauge_indicator/gauge_indicator.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
 
   @override
-  State<DriverHomeScreen> createState() => MapSampleState();
+  State<DriverHomeScreen> createState() => DriverHomeScreenState();
 }
 
-class MapSampleState extends State<DriverHomeScreen> {
+class DriverHomeScreenState extends State<DriverHomeScreen> {
   final Completer<GoogleMapController> _controller =
       Completer<GoogleMapController>();
   Set<Marker> _markers = {};
   LatLng? _previousPosition;
+  static double zoom = 16;
+  static double tilt = 45;
 
-  LocationData? currentLocation;
+  static LocationData? currentLocation;
+  double _speed = 0.0; // Speed in km/h
 
-  static const CameraPosition _kGooglePlex = CameraPosition(
-    target: LatLng(18.52, 73.84),
-    zoom: 17,
-    tilt: 59.440717697143555,
+  static CameraPosition _kGooglePlex = CameraPosition(
+    target: LatLng(currentLocation!.latitude!, currentLocation!.longitude!),
+    zoom: zoom,
+    tilt: tilt,
   );
-
-  static const CameraPosition _kLake = CameraPosition(
-      bearing: 192.8334901395799,
-      target: LatLng(18.52, 73.84),
-      tilt: 59.440717697143555,
-      zoom: 19.151926040649414);
 
   @override
   void initState() {
     _loadCustomMarker(18.52, 73.84);
+    getCurrentLocation();
 
     super.initState();
-
-    // _loadCustomMarker(currentLocation!.latitude!, currentLocation!.latitude!);
   }
 
   final databaseReference = FirebaseDatabase.instance
@@ -68,10 +65,12 @@ class MapSampleState extends State<DriverHomeScreen> {
   }
 
   Future<void> _loadCustomMarker(double latitude, double longitude) async {
-    final Uint8List markerIcon =
-        await getMarkerIcon("assets/school_bus_icon.png", 170);
     final Marker customMarker = Marker(
-      icon: BitmapDescriptor.fromBytes(markerIcon),
+      icon: await BitmapDescriptor.asset(
+        ImageConfiguration(size: Size(100, 70)),
+        'assets/school_bus_icon.png', 
+      ),
+      
       markerId: const MarkerId("Marker 1"),
       position: LatLng(latitude, longitude),
       infoWindow: const InfoWindow(
@@ -97,8 +96,14 @@ class MapSampleState extends State<DriverHomeScreen> {
         .asUint8List();
   }
 
-  void _logout() {
-    Navigator.of(context).pop();
+  Future<void> _logout() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    await prefs.clear();
+
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) {
+      return LoginScreen();
+    }));
   }
 
   @override
@@ -110,8 +115,9 @@ class MapSampleState extends State<DriverHomeScreen> {
           style:
               GoogleFonts.openSans(fontSize: 30, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Color.fromRGBO(255, 193, 7, 1),
-        // centerTitle: true,
+        centerTitle: true,
+        backgroundColor: const Color.fromRGBO(255, 193, 7, 1),
+        
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.settings, size: 20, color: Colors.black),
@@ -123,8 +129,8 @@ class MapSampleState extends State<DriverHomeScreen> {
                 value: 'logout',
                 child: Row(
                   children: [
-                    Icon(Icons.logout, color: Colors.black),
-                    SizedBox(width: 8),
+                    const Icon(Icons.logout, color: Colors.black),
+                    const SizedBox(width: 8),
                     Text(
                       'Logout',
                       style: GoogleFonts.openSans(
@@ -138,27 +144,87 @@ class MapSampleState extends State<DriverHomeScreen> {
           ),
         ],
       ),
-      body: GoogleMap(
-        markers: _markers,
-        mapType: MapType.normal,
-        initialCameraPosition: _kGooglePlex,
-        onMapCreated: (GoogleMapController controller) {
-          _controller.complete(controller);
-        },
-      ),
+      body: currentLocation == null
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(children: [
+              GoogleMap(
+                zoomControlsEnabled: false,
+                markers: _markers,
+                mapType: MapType.normal,
+                initialCameraPosition: _kGooglePlex,
+                onMapCreated: (GoogleMapController controller) {
+                  _controller.complete(controller);
+                },
+              ),
+              Positioned(
+                bottom: 30,
+                left: 40,
+                child: AnimatedRadialGauge(
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.bounceIn,
+                  radius: 70,
+                  value: _speed.clamp(0, 120), // Clamp to 0-120 for speed
+                  axis: GaugeAxis(
+                    min: 0,
+                    max: 120,
+                    degrees: 180,
+                    style: GaugeAxisStyle(
+                      thickness: 20,
+                      background: Colors.grey.shade700,
+                      segmentSpacing: 6,
+                      blendColors: true,
+                    ),
+                    segments: const  [
+                      GaugeSegment(
+                        from: 0,
+                        to: 120,
+                        gradient: GaugeAxisGradient(
+                          colors: [Colors.green, Colors.orange, Colors.red],
+                          colorStops: [0.0, 0.5, 1.0],
+                        ),
+                      ),
+                    ],
+                    pointer: null,
+                  ),
+
+                  builder: (context, child, value) => Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "${value.toStringAsFixed(0)} ",
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black,
+                          ),
+                        ),
+                       const  Text(
+                          "km/h",
+                          style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            ]),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Color.fromRGBO(255, 193, 7, 1),
+        backgroundColor: const Color.fromRGBO(255, 193, 7, 1),
         onPressed: () async {
-          DriverLocationService _locationService = DriverLocationService();
+          DriverLocationService locationService = DriverLocationService();
 
           if (TripDetails.tripStared) {
             TripDetails.tripStared = false;
-            _locationService.stopSendingLocation();
+            locationService.stopSendingLocation();
           } else {
             TripDetails.tripStared = true;
 
             LocationData? currentPosition = await getCurrentLocation();
-            _locationService.startSendingLocation();
+            locationService.startSendingLocation();
 
             if (currentPosition != null &&
                 currentPosition.latitude != null &&
@@ -169,7 +235,7 @@ class MapSampleState extends State<DriverHomeScreen> {
               );
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Failed to fetch current location")),
+                const SnackBar(content: Text("Failed to fetch current location")),
               );
             }
           }
@@ -178,7 +244,7 @@ class MapSampleState extends State<DriverHomeScreen> {
         },
         label: Row(
           children: [
-            Icon(Icons.pin_drop),
+           const  Icon(Icons.pin_drop),
             const SizedBox(
               width: 5,
             ),
@@ -186,12 +252,12 @@ class MapSampleState extends State<DriverHomeScreen> {
               ((!TripDetails.tripStared)
                   ? "Start Your Trip"
                   : "Stop Your Trip"),
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: const  TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -206,13 +272,13 @@ class MapSampleState extends State<DriverHomeScreen> {
     await controller
         .animateCamera(CameraUpdate.newCameraPosition(CameraPosition(
       target: LatLng(startLat, startLng),
-      zoom: 17,
-      //      // Set the zoom level (you can adjust this for closer or farther view)
-      tilt: 50, // Tilt to give a more dynamic perspective of the map
-      bearing:
-          30, // Set bearing to change the direction of the camera view (rotation)
+      zoom: zoom,
+      tilt: tilt, 
+      bearing: 30, 
     )));
   }
+
+  Timer? _speedResetTimer;
 
   Future<LocationData?> getCurrentLocation() async {
     loc.Location location = loc.Location();
@@ -236,6 +302,7 @@ class MapSampleState extends State<DriverHomeScreen> {
     try {
       await location.getLocation().then((location) {
         currentLocation = location;
+        _speed = (currentLocation!.speed ?? 0.0) * 3.6; // m/s to km/h
       });
 
       log("Latitude: ${currentLocation!.latitude}, Longitude: ${currentLocation!.longitude}");
@@ -243,6 +310,23 @@ class MapSampleState extends State<DriverHomeScreen> {
       location.onLocationChanged.listen((newLocation) {
         final LatLng newPosition =
             LatLng(newLocation.latitude!, newLocation.longitude!);
+
+        _speed = (newLocation.speed ?? 0.0) * 3.6; // m/s to km/h
+
+        log("Speed: $_speed");
+
+        // Cancel any existing timer
+        _speedResetTimer?.cancel();
+
+        // Restart a timer to reset speed after delay
+        _speedResetTimer = Timer(Duration(seconds: 10), () {
+
+
+          setState(() {
+            log("IN SET state : changeLoc");
+            _speed = 0;
+          });
+        });
 
         if (_previousPosition == null) {
           _previousPosition = newPosition;
@@ -257,9 +341,7 @@ class MapSampleState extends State<DriverHomeScreen> {
         currentLocation = newLocation;
       });
 
-      // _goCurrentPosition(newLocation.longitude!, newLocation.latitude!);
-      // setState(() {});
-
+     
       return currentLocation;
     } catch (e) {
       log("Error getting location: $e");

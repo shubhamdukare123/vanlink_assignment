@@ -7,9 +7,8 @@ import 'package:vanlink_assignment/model/trip_details_model.dart';
 class DriverLocationService {
   final loc.Location _location = loc.Location();
   final DatabaseReference _databaseReference = FirebaseDatabase.instance.ref();
-
   StreamSubscription<loc.LocationData>? _locationSubscription;
-  StreamSubscription<DatabaseEvent>? _locationListener;
+  Timer? _speedResetTimer;
 
   /// Start sending driver's location to Firebase
   Future<void> startSendingLocation() async {
@@ -32,15 +31,31 @@ class DriverLocationService {
     _locationSubscription =
         _location.onLocationChanged.listen((loc.LocationData currentLocation) {
       if (TripDetails.tripStared) {
+        final double speed = (currentLocation.speed ?? 0.0) * 3.6;
+        log("Firebase Speed : $speed");
+
         _sendLocationToFirebase(
-            currentLocation.latitude!, currentLocation.longitude!);
+            currentLocation.latitude!, currentLocation.longitude!, speed);
+
+      
+        _speedResetTimer?.cancel();
+
+      
+        _speedResetTimer = Timer(Duration(seconds: 10), () {
+        
+          _sendLocationToFirebase(
+            currentLocation.latitude!,
+            currentLocation.longitude!,
+            0.0,
+          );
+        });
       }
     });
 
     log("Started sending location");
   }
 
-  /// Stop sending driver's location to Firebase
+  
   void stopSendingLocation() {
     _locationSubscription?.cancel();
     _locationSubscription = null;
@@ -48,39 +63,21 @@ class DriverLocationService {
     log("Stopped sending location");
   }
 
-  /// Internal: Push location to Firebase
+  
   Future<void> _sendLocationToFirebase(
-      double latitude, double longitude) async {
+      double latitude, double longitude, double speed) async {
     try {
-      await _databaseReference.child('driver_location').set({
-        'lat': latitude,
-        'lng': longitude,
-      });
-      log('Location sent: $latitude, $longitude');
+      await _databaseReference
+          .child('driver_location')
+          .set({'lat': latitude, 'lng': longitude, 'speed': (speed)});
+      log('Location sent: $latitude, $longitude, $speed');
     } catch (e) {
       log('Error sending location: $e');
     }
   }
 
-  /// Listen to real-time updates from Firebase
-  void fetchLiveLocation(Function(double lat, double lng) onUpdate) {
-    _locationListener = _databaseReference
-        .child('driver_location')
-        .onValue
-        .listen((DatabaseEvent event) {
-      final data = event.snapshot.value as Map<dynamic, dynamic>?;
-      if (data != null && data.containsKey('lat') && data.containsKey('lng')) {
-        final double lat = data['lat'] as double;
-        final double lng = data['lng'] as double;
-        onUpdate(lat, lng);
-      }
-    });
-  }
 
-  /// Stop listening to location updates from Firebase
-  void stopListeningToLocation() {
-    _locationListener?.cancel();
-    _locationListener = null;
-    print("Stopped listening to Firebase");
-  }
+ 
+
+  
 }

@@ -1,15 +1,13 @@
-import 'dart:developer';
+// ignore_for_file: use_build_context_synchronously
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:vanlink_assignment/controller/session_data.dart';
 import 'package:vanlink_assignment/view/login_register/reset_password_screen.dart';
-import 'package:vanlink_assignment/view/google_map.dart';
+import 'package:vanlink_assignment/view/driver_home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:vanlink_assignment/view/login_register/register_screen.dart';
-
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vanlink_assignment/view/parents_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -27,14 +25,13 @@ class EzyEventUIState extends State<LoginScreen>
   final TextEditingController _passwordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  //firebase auth object
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-
+  
   String selectedRole = "User";
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -43,11 +40,11 @@ class EzyEventUIState extends State<LoginScreen>
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Image.asset(
-                "assets/vanlink_logo.png",
+                "assets/vanlink_logo_no_background.png",
                 height: 300,
               ),
 
-              // Role Selection Buttons
+              
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -83,10 +80,10 @@ class EzyEventUIState extends State<LoginScreen>
                   const SizedBox(width: 20),
                   GestureDetector(
                     onTap: () {
-                      // Implement forgot password functionality
+                      
                       Navigator.of(context)
                           .push(MaterialPageRoute(builder: (context) {
-                        return ResetPasswordPage();
+                        return const ResetPasswordPage();
                       }));
                     },
                     child: Text(
@@ -109,14 +106,14 @@ class EzyEventUIState extends State<LoginScreen>
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => SignUpPage()),
+                        MaterialPageRoute(builder: (context) => const SignUpPage()),
                       );
                     },
                     child: GestureDetector(
                       onTap: () {
                         Navigator.of(context)
                             .push(MaterialPageRoute(builder: (context) {
-                          return SignUpPage();
+                          return const SignUpPage();
                         }));
                       },
                       child: Text(
@@ -144,7 +141,7 @@ class EzyEventUIState extends State<LoginScreen>
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: selectedRole == role
-              ? Color.fromRGBO(255, 193, 7, 1)
+              ? const Color.fromRGBO(255, 193, 7, 1)
               : Colors.grey[300],
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -169,7 +166,7 @@ class EzyEventUIState extends State<LoginScreen>
     return Column(
       key: ValueKey<String>(selectedRole),
       children: [
-        Container(
+        SizedBox(
           height: 56,
           width: 317,
           child: TextFormField(
@@ -185,7 +182,7 @@ class EzyEventUIState extends State<LoginScreen>
           ),
         ),
         const SizedBox(height: 20),
-        Container(
+        SizedBox(
           height: 56,
           width: 317,
           child: TextFormField(
@@ -214,7 +211,7 @@ class EzyEventUIState extends State<LoginScreen>
         const SizedBox(height: 20),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Color.fromRGBO(255, 193, 7, 1),
+            backgroundColor: const Color.fromRGBO(255, 193, 7, 1),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
@@ -224,7 +221,7 @@ class EzyEventUIState extends State<LoginScreen>
 
             if (isValid) {
               try {
-                UserCredential _userCredential = await FirebaseAuth.instance
+                await FirebaseAuth.instance
                     .signInWithEmailAndPassword(
                         email: _emailController.text.trim(),
                         password: _passwordController.text.trim());
@@ -250,43 +247,45 @@ class EzyEventUIState extends State<LoginScreen>
                 }
 
                 await SessionData.storeSessionData(
-                    loginData: true, email: email!, name: name!);
+                  loginData: true,
+                  email: email!,
+                  name: name!,
+                  role: role!,
+                );
 
                 if (role == "Parent") {
-                  //firebase authentication code
+                  
 
                   if (selectedRole == "Parent") {
                     Navigator.of(context)
-                        .push(MaterialPageRoute(builder: (context) {
-                      return ParentsHomeScreen();
+                        .pushReplacement(MaterialPageRoute(builder: (context) {
+                      return const ParentsHomeScreen();
                     }));
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Invalid Credentials")));
+                        const SnackBar(content: Text("Invalid Credentials")));
                   }
                 } else if (role == "Driver") {
                   if (selectedRole == "Driver") {
                     Navigator.of(context)
-                        .push(MaterialPageRoute(builder: (context) {
-                      return DriverHomeScreen();
+                        .pushReplacement(MaterialPageRoute(builder: (context) {
+                      return const DriverHomeScreen();
                     }));
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Invalid Credentials")));
+                        const SnackBar(content: Text("Invalid Credentials")));
                   }
                 }
-                // ScaffoldMessenger.of(context).showSnackBar(
-                //   SnackBar(content: Text("Logged in as $selectedRole")),
-                // );
+                
               } on FirebaseAuthException {
                 ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Invalid Credentials")));
+                    const SnackBar(content: Text("Invalid Credentials")));
               }
             }
           },
           child: Text(
             "Login",
-            //"Login as $selectedRole",
+      
             style: GoogleFonts.openSans(
               fontSize: 20,
               color: Colors.black,

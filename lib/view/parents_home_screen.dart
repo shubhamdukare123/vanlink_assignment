@@ -1,58 +1,49 @@
-import 'dart:developer';
-import 'dart:typed_data';
 import "package:flutter/material.dart";
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
-import 'package:geocoding/geocoding.dart';
-
-import 'package:location/location.dart' as loc;
-import 'package:location/location.dart';
-import 'package:vanlink_assignment/controller/firebase_driver_location_service.dart';
-import 'package:vanlink_assignment/model/trip_details_model.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vanlink_assignment/view/login_register/login_screen.dart';
+import 'package:gauge_indicator/gauge_indicator.dart';
 
 class ParentsHomeScreen extends StatefulWidget {
   const ParentsHomeScreen({super.key});
 
   @override
-  State<ParentsHomeScreen> createState() => MapSampleState();
+  State<ParentsHomeScreen> createState() => ParentsHomeScreenState();
 }
 
-class MapSampleState extends State<ParentsHomeScreen> {
+class ParentsHomeScreenState extends State<ParentsHomeScreen> {
   final Completer<GoogleMapController> _controller =
       Completer<GoogleMapController>();
   Set<Marker> _markers = {};
-  LatLng? _previousPosition;
+  static double zoom = 16;
 
-  LocationData? currentLocation;
+  static double lng = 0.0;
+  static double lat = 0.0;
+  static double _speed = 0.0; // Speed in km/h
 
-  static const CameraPosition _kGooglePlex = CameraPosition(
-    target: LatLng(37.42796133580664, -122.085749655962),
-    zoom: 70,
+  static CameraPosition _kGooglePlex = CameraPosition(
+    target: LatLng(lat, lng),
+    zoom: zoom,
   );
-
-  static const CameraPosition _kLake = CameraPosition(
-      bearing: 192.8334901395799,
-      target: LatLng(37.43296265331129, -122.08832357078792),
-      tilt: 59.440717697143555,
-      zoom: 19.151926040649414);
 
   @override
   void initState() {
-    _loadCustomMarker(37.42796133580664, -122.085749655962);
-
     super.initState();
     listenToDriverLocation();
-    // _loadCustomMarker(currentLocation!.latitude!, currentLocation!.latitude!);
+    _loadCustomMarker(lat, lng);
   }
 
   Future<void> _loadCustomMarker(double latitude, double longitude) async {
-    final Uint8List markerIcon =
-        await getMarkerIcon("assets/school_bus_icon.png", 200);
     final Marker customMarker = Marker(
-      icon: BitmapDescriptor.fromBytes(markerIcon),
+      icon: await BitmapDescriptor.asset(
+        ImageConfiguration(size: Size(100, 70)),
+        'assets/school_bus_icon.png',
+      ),
       markerId: const MarkerId("Marker 1"),
       position: LatLng(latitude, longitude),
       infoWindow: const InfoWindow(
@@ -81,69 +72,134 @@ class MapSampleState extends State<ParentsHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Vanlink")),
-      body: GoogleMap(
-        markers: _markers,
-        mapType: MapType.normal,
-        initialCameraPosition: _kGooglePlex,
-        onMapCreated: (GoogleMapController controller) {
-          _controller.complete(controller);
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          DriverLocationService _locationService = DriverLocationService();
-
-          if (TripDetails.tripStared) {
-            TripDetails.tripStared = false;
-            _locationService.stopSendingLocation();
-          } else {
-            TripDetails.tripStared = true;
-
-            LocationData? currentPosition = await getCurrentLocation();
-            _locationService.startSendingLocation();
-
-            if (currentPosition != null &&
-                currentPosition.latitude != null &&
-                currentPosition.longitude != null) {
-              _goCurrentPosition(
-                currentPosition.latitude!,
-                currentPosition.longitude!,
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Failed to fetch current location")),
-              );
-            }
-          }
-
-          setState(() {});
-        },
-        label: Row(
-          children: [
-            Icon(Icons.pin_drop),
-            const SizedBox(
-              width: 5,
-            ),
-            Text(((!TripDetails.tripStared)
-                ? "Start Your Trip"
-                : "Stop Your Trip")),
-          ],
+      appBar: AppBar(
+        title: Text(
+          "Vanlink",
+          style:
+              GoogleFonts.openSans(fontSize: 30, fontWeight: FontWeight.bold),
         ),
+        centerTitle: true,
+        backgroundColor: Color.fromRGBO(255, 193, 7, 1),
+        // centerTitle: true,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.settings, size: 20, color: Colors.black),
+            onSelected: (value) {
+              if (value == 'logout') _logout();
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                  const   Icon(Icons.logout, color: Colors.black),
+                   const  SizedBox(width: 8),
+                    Text(
+                      'Logout',
+                      style: GoogleFonts.openSans(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      body: Stack(children: [
+        GoogleMap(
+          zoomControlsEnabled: false,
+          markers: _markers,
+          mapType: MapType.normal,
+          initialCameraPosition: _kGooglePlex,
+          onMapCreated: (GoogleMapController controller) {
+            _controller.complete(controller);
+          },
+        ),
+        Positioned(
+          bottom: 30,
+          left: 40,
+          child: AnimatedRadialGauge(
+            duration: Duration(milliseconds: 500),
+            curve: Curves.bounceIn,
+            radius: 70,
+            value: _speed.clamp(0, 120), // Clamp to 0-120 for speed
+            axis: GaugeAxis(
+              min: 0,
+              max: 120,
+              degrees: 180,
+              style: GaugeAxisStyle(
+                thickness: 20,
+                background: Colors.grey.shade700,
+                segmentSpacing: 6,
+                blendColors: true,
+              ),
+              segments: const  [
+                GaugeSegment(
+                  from: 0,
+                  to: 120,
+                  gradient: GaugeAxisGradient(
+                    colors: [Colors.green, Colors.orange, Colors.red],
+                    colorStops: [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ],
+              pointer: null,
+            ),
+
+            builder: (context, child, value) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "${value.toStringAsFixed(0)} ",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                    ),
+                  ),
+                  Text(
+                    "km/h",
+                    style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        )
+      ]),
+      
     );
   }
 
   final databaseReference = FirebaseDatabase.instance
-      .ref("driver_location"); // Adjust path accordingly
+      .ref("driver_location"); 
+
+  Timer? _speedResetTimer;
 
   void listenToDriverLocation() {
     databaseReference.onValue.listen((DatabaseEvent event) {
       if (event.snapshot.exists) {
         final data = event.snapshot.value as Map;
-        final double lat = data['lat'];
-        final double lng = data['lng'];
+        lat = data['lat'];
+        lng = data['lng'];
+
+        _speed = (data['speed'] as num).toDouble();
+
+        // Cancel any existing timer
+        _speedResetTimer?.cancel();
+
+  
+        _speedResetTimer = Timer(Duration(seconds: 10), () {
+          _speed = 0;
+    
+          setState(() {});
+        });
 
         final LatLng newPosition = LatLng(lat, lng);
         _setMarker(newPosition);
@@ -152,77 +208,16 @@ class MapSampleState extends State<ParentsHomeScreen> {
     });
   }
 
-  Future<void> _goCurrentPosition(
-    double startLat,
-    double startLng,
-  ) async {
-    log("IN go to currrent position");
-    log("Animating camera to: $startLat, $startLng"); // <- Add this
+  Future<void> _logout() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-    final GoogleMapController controller = await _controller.future;
-    await controller
-        .animateCamera(CameraUpdate.newCameraPosition(CameraPosition(
-      target: LatLng(startLat, startLng),
-      zoom: 13.5,
-      //      // Set the zoom level (you can adjust this for closer or farther view)
-      // tilt: 50, // Tilt to give a more dynamic perspective of the map
-      // bearing:
-      // 30, // Set bearing to change the direction of the camera view (rotation)
-    )));
+    await prefs.clear();
+
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) {
+      return LoginScreen();
+    }));
   }
 
-  Future<LocationData?> getCurrentLocation() async {
-    loc.Location location = loc.Location();
-    // Check if service is enabled
-    bool serviceEnabled = await location.serviceEnabled();
-    if (!serviceEnabled) {
-      serviceEnabled = await location.requestService();
-    }
-
-    // Check for permission
-    PermissionStatus permissionGranted = await location.hasPermission();
-    if (permissionGranted == PermissionStatus.denied) {
-      permissionGranted = await location.requestPermission();
-      if (permissionGranted != PermissionStatus.granted) {
-        log("Location permission not granted");
-        return null;
-      }
-    }
-
-    // Get the location
-    try {
-      await location.getLocation().then((location) {
-        currentLocation = location;
-      });
-
-      log("Latitude: ${currentLocation!.latitude}, Longitude: ${currentLocation!.longitude}");
-
-      location.onLocationChanged.listen((newLocation) {
-        final LatLng newPosition =
-            LatLng(newLocation.latitude!, newLocation.longitude!);
-
-        if (_previousPosition == null) {
-          _previousPosition = newPosition;
-          _setMarker(newPosition);
-          _moveCamera(newPosition.latitude, newPosition.longitude);
-        } else {
-          _animateMarker(_previousPosition!, newPosition);
-          _moveCamera(newPosition.latitude, newPosition.longitude);
-          _previousPosition = newPosition;
-        }
-
-        currentLocation = newLocation;
-      });
-
-      // _goCurrentPosition(newLocation.longitude!, newLocation.latitude!);
-      // setState(() {});
-
-      return currentLocation;
-    } catch (e) {
-      log("Error getting location: $e");
-      return null;
-    }
-  }
 
   Future<void> _animateMarker(LatLng from, LatLng to) async {
     const int steps = 30;
@@ -240,6 +235,7 @@ class MapSampleState extends State<ParentsHomeScreen> {
       await Future.delayed(stepDuration);
     }
   }
+  
 
   void _setMarker(LatLng position) async {
     final Uint8List markerIcon =
